@@ -22,11 +22,18 @@ export function GameHUD({
   teamLives,
   message,
 }: GameHUDProps) {
-  const remaining =
-    board.config.mineCount - board.flagCount + board.mineHits; // approx mines left to flag
+  // Mines still hidden (opened hits no longer need flags)
+  const hiddenMines = board.cells
+    .flat()
+    .filter((c) => c.isMine && c.state === "hidden").length;
+  const flaggedMines = board.cells
+    .flat()
+    .filter((c) => c.isMine && c.state === "flagged").length;
+  const remaining = hiddenMines;
+  const totalSafe = safeCellCount(board.config);
   const progress = Math.min(
     100,
-    Math.round((board.openedCount / safeCellCount(board.config)) * 100),
+    Math.round((board.openedCount / Math.max(1, totalSafe)) * 100),
   );
   const lives =
     mode === "coop" && teamLives !== undefined ? teamLives : board.lives;
@@ -59,9 +66,21 @@ export function GameHUD({
       </div>
 
       <div className="flex items-center gap-2 text-[11px] text-white/60">
-        <span>💣 {Math.max(0, remaining)}</span>
+        <span>
+          💣 {remaining}
+          {board.mineHits > 0 ? ` · hit ${board.mineHits}` : ""}
+        </span>
         <span className="text-white/30">·</span>
-        <span>🚩 {board.flagCount}</span>
+        <span>
+          🚩 {board.flagCount}
+          {flaggedMines > 0 && board.flagCount !== flaggedMines
+            ? ` (${flaggedMines} good)`
+            : ""}
+        </span>
+        <span className="text-white/30">·</span>
+        <span>
+          {board.openedCount}/{totalSafe}
+        </span>
         <span className="text-white/30">·</span>
         <span>Max ×{board.maxCombo}</span>
         {board.shieldCharges > 0 && (

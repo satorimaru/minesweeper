@@ -12,7 +12,6 @@ import {
   isInventoryPower,
   playSoftMines,
   POWER_UP_LABELS,
-  safeCellCount,
 } from "./types";
 
 const COMBO_WINDOW_MS = 1400;
@@ -85,7 +84,16 @@ function openFlood(board: Board, startRow: number, startCol: number, now: number
   while (stack.length > 0) {
     const [row, col] = stack.pop()!;
     const cell = board.cells[row][col];
-    if (cell.state === "open" || cell.state === "flagged" || cell.isMine) continue;
+    if (cell.state === "open" || cell.isMine) continue;
+
+    // Wrong flag on a safe cell shouldn't block a flood clear
+    if (cell.state === "flagged") {
+      if (cell.isMine) continue;
+      cell.state = "hidden";
+      board.flagCount = Math.max(0, board.flagCount - 1);
+    }
+
+    if (cell.state !== "hidden") continue;
 
     cell.state = "open";
     cell.justOpened = true;
@@ -96,7 +104,7 @@ function openFlood(board: Board, startRow: number, startCol: number, now: number
     if (cell.adjacent === 0) {
       for (const [r, c] of neighbors(board.config, row, col)) {
         const n = board.cells[r][c];
-        if (n.state === "hidden" && !n.isMine) {
+        if (!n.isMine && n.state !== "open") {
           stack.push([r, c]);
         }
       }
@@ -108,7 +116,16 @@ function openFlood(board: Board, startRow: number, startCol: number, now: number
 
 function openSafeCell(board: Board, row: number, col: number, now: number): number {
   const cell = board.cells[row][col];
-  if (cell.state !== "hidden" || cell.isMine) return 0;
+  if (cell.isMine) return 0;
+  if (cell.state === "open") return 0;
+
+  // Clear a wrong flag so power-ups / flood can open the cell
+  if (cell.state === "flagged") {
+    cell.state = "hidden";
+    board.flagCount = Math.max(0, board.flagCount - 1);
+  }
+  if (cell.state !== "hidden") return 0;
+
   if (cell.adjacent === 0) {
     return openFlood(board, row, col, now);
   }
@@ -119,24 +136,44 @@ function openSafeCell(board: Board, row: number, col: number, now: number): numb
   return 1;
 }
 
+/**
+ * Win when every safe cell is open.
+ * Uses a live board scan (not only openedCount) so desync / wrong flags
+ * can't leave the game stuck in "playing" with a clear-looking board.
+ */
 function checkWin(board: Board): void {
-  if (board.openedCount >= safeCellCount(board.config)) {
-    board.status = "won";
-    const clearBonus = 250 + board.maxCombo * 15;
-    board.score += clearBonus;
-    pushFloater(
-      board,
-      Math.floor(board.config.height / 2),
-      Math.floor(board.config.width / 2),
-      `CLEAR +${clearBonus}`,
-      "combo",
-    );
-    for (const line of board.cells) {
-      for (const c of line) {
-        if (c.isMine && c.state === "hidden") {
-          c.state = "flagged";
-          board.flagCount++;
-        }
+  if (board.status !== "playing") return;
+
+  let openedSafe = 0;
+  let unopenedSafe = 0;
+  for (const line of board.cells) {
+    for (const cell of line) {
+      if (cell.isMine) continue;
+      if (cell.state === "open") openedSafe++;
+      else unopenedSafe++;
+    }
+  }
+
+  // Keep HUD progress honest
+  board.openedCount = openedSafe;
+
+  if (unopenedSafe > 0) return;
+
+  board.status = "won";
+  const clearBonus = 250 + board.maxCombo * 15;
+  board.score += clearBonus;
+  pushFloater(
+    board,
+    Math.floor(board.config.height / 2),
+    Math.floor(board.config.width / 2),
+    `CLEAR +${clearBonus}`,
+    "combo",
+  );
+  for (const line of board.cells) {
+    for (const c of line) {
+      if (c.isMine && c.state === "hidden") {
+        c.state = "flagged";
+        board.flagCount++;
       }
     }
   }
@@ -365,6 +402,8 @@ function hitMine(
     board.shieldCharges -= 1;
     board.lastPowerMessage = "🛡️ Shield blocked the blast!";
     pushFloater(board, row, col, "BLOCKED", "power");
+    // Board may already be clear of safe cells
+    checkWin(board);
     return board;
   }
 
@@ -385,8 +424,10 @@ function hitMine(
           if (c.isMine) c.state = "open";
         }
       }
+      return board;
     }
-    // Versus: never hard-lose — keep racing with score damage
+    // Soft hit — still eligible to win if all safe cells are already open
+    checkWin(board);
     return board;
   }
 
@@ -471,6 +512,8 @@ export function toggleFlag(board: Board, row: number, col: number): Board {
     cell.state = "flagged";
     next.flagCount++;
   }
+  // Re-check in case the board was already fully cleared of safe cells
+  checkWin(next);
   return next;
 }
 
@@ -489,6 +532,7 @@ export function flagPath(
     const cell = next.cells[row][col];
     if (cell.state === "hidden") {
       next = toggleFlag(next, row, col);
+      if (next.status !== "playing") break;
     }
   }
   return next;

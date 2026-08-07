@@ -39,9 +39,13 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
     setSeedKey((k) => k + 1);
   }, [config, mode]);
 
-  // Timer
+  // Timer — freezes the moment the board leaves "playing"
   useEffect(() => {
-    if (board.status !== "playing" || startedAt === null) return;
+    if (startedAt === null) return;
+    if (board.status !== "playing") {
+      setElapsed((Date.now() - startedAt) / 1000);
+      return;
+    }
     const id = setInterval(() => {
       setElapsed((Date.now() - startedAt) / 1000);
     }, 200);

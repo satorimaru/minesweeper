@@ -114,12 +114,16 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
     setElapsed(0);
   }, [room]);
 
-  // Timer while playing
+  // Timer — freezes when local board or room leaves playing
   useEffect(() => {
-    if (!room?.startedAt || room.status !== "playing") return;
-    if (board?.status !== "playing") return;
+    if (!room?.startedAt) return;
+    const start = room.startedAt;
+    if (room.status !== "playing" || board?.status !== "playing") {
+      setElapsed((Date.now() - start) / 1000);
+      return;
+    }
     const id = setInterval(() => {
-      setElapsed((Date.now() - (room.startedAt ?? Date.now())) / 1000);
+      setElapsed((Date.now() - start) / 1000);
     }, 200);
     return () => clearInterval(id);
   }, [room?.startedAt, room?.status, board?.status]);
