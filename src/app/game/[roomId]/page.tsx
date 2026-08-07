@@ -10,7 +10,7 @@ export default function GameRoomPage({
 }) {
   const { roomId } = use(params);
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col pt-[max(0.5rem,env(safe-area-inset-top))]">
+    <main className="mx-auto flex h-dvh max-h-dvh w-full max-w-lg flex-col overflow-hidden pt-[max(0.25rem,env(safe-area-inset-top))]">
       <OnlineGame roomId={roomId} />
     </main>
   );

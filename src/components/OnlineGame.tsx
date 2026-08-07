@@ -25,7 +25,7 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
   const playerId = useRef("");
   const [room, setRoom] = useState<Room | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
-  const [flagPaint, setFlagPaint] = useState(false);
+  const [openSwipe, setOpenSwipe] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -110,7 +110,7 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
     seenSabotages.current = new Set();
     const config = DIFFICULTIES[room.difficulty];
     setBoard(generateBoard(config, room.seed, room.mode));
-    setFlagPaint(false);
+    setOpenSwipe(false);
     setElapsed(0);
   }, [room]);
 
@@ -283,34 +283,38 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
   const teamLost = room.mode === "coop" && room.result === "loss";
 
   return (
-    <div className="flex flex-1 flex-col gap-3 px-3 pb-[env(safe-area-inset-bottom)] pt-2">
-      <GameHUD
-        board={board}
-        mode={room.mode}
-        elapsed={elapsed}
-        rivalName={rival?.name}
-        rivalScore={rival?.score ?? 0}
-        teamLives={room.mode === "coop" ? room.teamLives : undefined}
-        message={board.lastPowerMessage}
-      />
+    <div className="flex min-h-0 flex-1 flex-col gap-2 px-2 pb-[env(safe-area-inset-bottom)] pt-1">
+      <div className="shrink-0">
+        <GameHUD
+          board={board}
+          mode={room.mode}
+          elapsed={elapsed}
+          rivalName={rival?.name}
+          rivalScore={rival?.score ?? 0}
+          teamLives={room.mode === "coop" ? room.teamLives : undefined}
+          message={board.lastPowerMessage}
+        />
+      </div>
 
-      <BoardView
-        board={board}
-        mode={room.mode}
-        flagPaint={flagPaint}
-        disabled={
-          board.status !== "playing" ||
-          room.status === "finished" ||
-          me?.playStatus === "finished"
-        }
-        onChange={setBoard}
-      />
+      <div className="min-h-0 flex-1">
+        <BoardView
+          board={board}
+          mode={room.mode}
+          openSwipe={openSwipe}
+          disabled={
+            board.status !== "playing" ||
+            room.status === "finished" ||
+            me?.playStatus === "finished"
+          }
+          onChange={setBoard}
+        />
+      </div>
 
       <InventoryBar
         board={board}
-        flagPaint={flagPaint}
+        openSwipe={openSwipe}
         onBoardChange={setBoard}
-        onToggleFlagPaint={() => setFlagPaint((v) => !v)}
+        onToggleOpenSwipe={() => setOpenSwipe((v) => !v)}
       />
 
       {(room.status === "finished" || board.status === "lost") && (

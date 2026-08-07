@@ -13,11 +13,11 @@ A chaotic, candy-crush take on Minesweeper — combos, rockets, nukes, swipe ges
 
 ## Gestures (phone)
 
-- **Tap** — open cell  
-- **Hold** — flag / unflag  
-- **Swipe** — paint-open a path of cells  
-- **Flag swipe** toggle — swipe to paint flags instead  
-- **Double-tap** an open number — classic chord  
+- **Tap** — flag / unflag  
+- **Double-tap** — open cell (or chord if already open)  
+- **Swipe** — paint flags along a path  
+- **Open swipe** toggle — swipe paints opens instead  
+- **Tap** an open number — classic chord  
 
 ## Power-ups
 

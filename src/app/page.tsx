@@ -57,12 +57,12 @@ export default function HomePage() {
 
   if (screen === "solo" || screen === "chaos") {
     return (
-      <main className="mx-auto flex w-full max-w-lg flex-1 flex-col px-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <header className="mb-2 text-center">
-          <h1 className="text-lg font-bold text-white">
+      <main className="mx-auto flex h-dvh max-h-dvh w-full max-w-lg flex-col overflow-hidden px-2 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <header className="mb-1 shrink-0 text-center">
+          <h1 className="text-base font-bold text-white">
             {GAME_MODE_META[screen].emoji} {GAME_MODE_META[screen].label}
           </h1>
-          <p className="text-xs text-white/50">{DIFFICULTIES[difficulty].label}</p>
+          <p className="text-[11px] text-white/50">{DIFFICULTIES[difficulty].label}</p>
         </header>
         <SoloGame
           mode={screen}
@@ -178,7 +178,7 @@ export default function HomePage() {
       </div>
 
       <div className="mt-6 space-y-1 text-center text-[11px] text-white/35">
-        <p>Tap open · Hold to flag · Swipe to paint · Double-tap chord</p>
+        <p>Tap flag · Double-tap open · Swipe to paint · Tap open number to chord</p>
         <p>Add to Home Screen for the full PWA vibe</p>
       </div>
     </main>

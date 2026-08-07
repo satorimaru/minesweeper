@@ -25,7 +25,7 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
   const [board, setBoard] = useState<Board>(() =>
     generateBoard(config, randomSeed(), mode),
   );
-  const [flagPaint, setFlagPaint] = useState(false);
+  const [openSwipe, setOpenSwipe] = useState(false);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [seedKey, setSeedKey] = useState(0);
@@ -35,7 +35,7 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
     setBoard(generateBoard(config, randomSeed(), mode));
     setStartedAt(null);
     setElapsed(0);
-    setFlagPaint(false);
+    setOpenSwipe(false);
     setSeedKey((k) => k + 1);
   }, [config, mode]);
 
@@ -68,19 +68,21 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-3 pb-[env(safe-area-inset-bottom)]">
-      <GameHUD
-        board={board}
-        mode={mode}
-        elapsed={elapsed}
-        message={board.lastPowerMessage}
-      />
+    <div className="flex min-h-0 flex-1 flex-col gap-2 pb-[env(safe-area-inset-bottom)]">
+      <div className="shrink-0">
+        <GameHUD
+          board={board}
+          mode={mode}
+          elapsed={elapsed}
+          message={board.lastPowerMessage}
+        />
+      </div>
 
-      <div className="flex-1" key={seedKey}>
+      <div className="min-h-0 flex-1" key={seedKey}>
         <BoardView
           board={board}
           mode={mode}
-          flagPaint={flagPaint}
+          openSwipe={openSwipe}
           disabled={board.status !== "playing"}
           onChange={onChange}
         />
@@ -88,9 +90,9 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
 
       <InventoryBar
         board={board}
-        flagPaint={flagPaint}
+        openSwipe={openSwipe}
         onBoardChange={setBoard}
-        onToggleFlagPaint={() => setFlagPaint((v) => !v)}
+        onToggleOpenSwipe={() => setOpenSwipe((v) => !v)}
         onExit={onExit}
       />
 

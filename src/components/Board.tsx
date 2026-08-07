@@ -12,10 +12,15 @@ import {
 import { BoardGestureController } from "@/lib/gestures";
 import { CellView } from "./Cell";
 
+/** Pixel gap between cells — keep in sync with grid style. */
+const GAP_PX = 2;
+const PAD_PX = 2;
+
 interface BoardProps {
   board: BoardModel;
   mode: GameMode;
-  flagPaint: boolean;
+  /** When true, swipe paints opens instead of flags. */
+  openSwipe: boolean;
   disabled?: boolean;
   onChange: (next: BoardModel) => void;
 }
@@ -23,12 +28,12 @@ interface BoardProps {
 export function Board({
   board,
   mode,
-  flagPaint,
+  openSwipe,
   disabled,
   onChange,
 }: BoardProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
-  const [cellSize, setCellSize] = useState(36);
+  const [cellSize, setCellSize] = useState(32);
   const [shake, setShake] = useState(false);
   const boardRef = useRef(board);
   boardRef.current = board;
@@ -39,30 +44,47 @@ export function Board({
   const modeRef = useRef(mode);
   modeRef.current = mode;
 
-  const flagPaintRef = useRef(flagPaint);
-  flagPaintRef.current = flagPaint;
+  const openSwipeRef = useRef(openSwipe);
+  openSwipeRef.current = openSwipe;
 
   const disabledRef = useRef(!!disabled);
   disabledRef.current = !!disabled;
 
-  // Responsive cell size for phone screens
+  // Fit entire grid into available width AND height (account for gaps)
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
 
     const measure = () => {
-      const w = el.clientWidth;
       const cols = board.config.width;
-      // Leave a little padding
-      const size = Math.floor((w - 8) / cols);
-      setCellSize(Math.max(28, Math.min(48, size)));
+      const rows = board.config.height;
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+
+      // total = n * cell + (n - 1) * gap + 2 * pad
+      const sizeFor = (space: number, n: number) => {
+        if (space <= 0 || n <= 0) return 8;
+        const usable = space - PAD_PX * 2 - GAP_PX * Math.max(0, n - 1);
+        return Math.floor(usable / n);
+      };
+
+      const byW = sizeFor(w, cols);
+      const byH = sizeFor(h > 0 ? h : w, rows);
+      // Prefer the tighter constraint so nothing is clipped
+      const size = Math.max(14, Math.min(byW, byH, 52));
+      setCellSize(size);
     };
 
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
-    return () => ro.disconnect();
-  }, [board.config.width]);
+    // Re-measure after layout settles (flex parents)
+    const t = requestAnimationFrame(measure);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(t);
+    };
+  }, [board.config.width, board.config.height]);
 
   // Shake when mine hit
   useEffect(() => {
@@ -76,14 +98,7 @@ export function Board({
   const controller = useMemo(
     () =>
       new BoardGestureController({
-        onLongPress: (cell) => {
-          if (disabledRef.current) return;
-          const next = toggleFlag(boardRef.current, cell.row, cell.col);
-          if (next !== boardRef.current) onChangeRef.current(next);
-          if (typeof navigator !== "undefined" && navigator.vibrate) {
-            navigator.vibrate(18);
-          }
-        },
+        // No long-press action — single tap flags, double-tap opens
         onGesture: (g) => {
           if (disabledRef.current) return;
           const b = boardRef.current;
@@ -91,22 +106,41 @@ export function Board({
           let next = b;
 
           if (g.kind === "swipe") {
-            next = flagPaintRef.current
-              ? flagPath(b, g.path)
-              : revealPath(b, g.path, m);
+            // Default swipe paints flags; open-swipe mode paints reveals
+            next = openSwipeRef.current
+              ? revealPath(b, g.path, m)
+              : flagPath(b, g.path);
           } else if (g.kind === "doubletap") {
             const cell = b.cells[g.end.row][g.end.col];
             if (cell.state === "open") {
               next = chordCell(b, g.end.row, g.end.col, m);
+            } else if (cell.state === "flagged") {
+              // Double-tap a flag: unflag then open (or just open via reveal after unflag)
+              let cleared = toggleFlag(b, g.end.row, g.end.col);
+              next = revealCell(cleared, g.end.row, g.end.col, m);
             } else {
-              next = flagPaintRef.current
-                ? toggleFlag(b, g.end.row, g.end.col)
-                : revealCell(b, g.end.row, g.end.col, m);
+              next = revealCell(b, g.end.row, g.end.col, m);
             }
           } else if (g.kind === "tap") {
-            next = flagPaintRef.current
-              ? toggleFlag(b, g.end.row, g.end.col)
-              : revealCell(b, g.end.row, g.end.col, m);
+            // Single tap = toggle flag (or fire armed power / ignore open cells)
+            if (b.armedPower) {
+              next = revealCell(b, g.end.row, g.end.col, m);
+            } else {
+              const cell = b.cells[g.end.row][g.end.col];
+              if (cell.state === "open") {
+                // Tap open number → chord (nice for one-hand play)
+                next = chordCell(b, g.end.row, g.end.col, m);
+              } else {
+                next = toggleFlag(b, g.end.row, g.end.col);
+                if (
+                  next !== b &&
+                  typeof navigator !== "undefined" &&
+                  navigator.vibrate
+                ) {
+                  navigator.vibrate(12);
+                }
+              }
+            }
           }
 
           if (next !== b) onChangeRef.current(next);
@@ -164,22 +198,37 @@ export function Board({
     controller.cancel();
   }, [controller]);
 
-  const gridW = cellSize * board.config.width + 4;
-  const gridH = cellSize * board.config.height + 4;
+  const gridW =
+    board.config.width * cellSize +
+    Math.max(0, board.config.width - 1) * GAP_PX +
+    PAD_PX * 2;
+  const gridH =
+    board.config.height * cellSize +
+    Math.max(0, board.config.height - 1) * GAP_PX +
+    PAD_PX * 2;
 
   return (
-    <div ref={wrapRef} className="relative w-full overflow-x-auto">
+    <div
+      ref={wrapRef}
+      className="relative flex h-full min-h-0 w-full min-w-0 flex-1 items-center justify-center overflow-hidden"
+    >
       <div
-        className={`relative mx-auto touch-none ${shake ? "animate-board-shake" : ""}`}
-        style={{ width: gridW, height: gridH }}
+        className={`relative touch-none ${shake ? "animate-board-shake" : ""}`}
+        style={{ width: gridW, height: gridH, maxWidth: "100%", maxHeight: "100%" }}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
       >
         <div
-          className="grid gap-0.5 p-0.5"
+          className="grid"
           style={{
             gridTemplateColumns: `repeat(${board.config.width}, ${cellSize}px)`,
+            gridTemplateRows: `repeat(${board.config.height}, ${cellSize}px)`,
+            gap: GAP_PX,
+            padding: PAD_PX,
+            width: gridW,
+            height: gridH,
+            boxSizing: "border-box",
           }}
         >
           {board.cells.flatMap((row) =>
@@ -196,9 +245,14 @@ export function Board({
           )}
         </div>
 
-        {/* Floating score / combo popups */}
         {board.floaters.map((f) => (
-          <Floater key={f.id} floater={f} cellSize={cellSize} />
+          <Floater
+            key={f.id}
+            floater={f}
+            cellSize={cellSize}
+            gap={GAP_PX}
+            pad={PAD_PX}
+          />
         ))}
       </div>
     </div>
@@ -208,9 +262,13 @@ export function Board({
 function Floater({
   floater,
   cellSize,
+  gap,
+  pad,
 }: {
   floater: FloatingScore;
   cellSize: number;
+  gap: number;
+  pad: number;
 }) {
   const colors = {
     score: "text-amber-200",
@@ -218,13 +276,15 @@ function Floater({
     power: "text-cyan-200",
     hit: "text-rose-300",
   };
+  const left = pad + floater.col * (cellSize + gap) + cellSize / 2;
+  const top = pad + floater.row * (cellSize + gap);
   return (
     <div
       className={`pointer-events-none absolute z-20 animate-float-up font-black drop-shadow-lg ${colors[floater.kind]}`}
       style={{
-        left: floater.col * cellSize + cellSize / 2,
-        top: floater.row * cellSize,
-        fontSize: Math.max(12, cellSize * 0.38),
+        left,
+        top,
+        fontSize: Math.max(11, cellSize * 0.38),
         transform: "translateX(-50%)",
       }}
     >

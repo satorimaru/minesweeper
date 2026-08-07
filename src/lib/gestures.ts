@@ -11,10 +11,11 @@ export interface GestureResult {
   end: CellCoord;
 }
 
-const LONG_PRESS_MS = 380;
+const LONG_PRESS_MS = 450;
 const TAP_SLOP_PX = 14;
 const SWIPE_MIN_CELLS = 2;
-const DOUBLE_TAP_MS = 280;
+/** Wait this long before committing a single-tap so double-tap can win. */
+const DOUBLE_TAP_MS = 260;
 
 export interface GestureControllerOptions {
   longPressMs?: number;
@@ -24,8 +25,9 @@ export interface GestureControllerOptions {
 
 /**
  * Tracks pointer/touch from start to end and classifies:
- * - long press (fires early via onLongPress)
- * - tap / double tap
+ * - long press (optional, fires early via onLongPress)
+ * - single tap (deferred so double-tap can cancel it)
+ * - double tap
  * - swipe path across cells
  */
 export class BoardGestureController {
@@ -39,7 +41,8 @@ export class BoardGestureController {
   private path: CellCoord[] = [];
   private startX = 0;
   private startY = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private longTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingTapTimer: ReturnType<typeof setTimeout> | null = null;
   private lastTapAt = 0;
   private lastTapCell: CellCoord | null = null;
   private pointerId: number | null = null;
@@ -51,7 +54,9 @@ export class BoardGestureController {
   }
 
   start(cell: CellCoord, x: number, y: number, pointerId: number): void {
-    this.cancelTimer();
+    // New press cancels a pending single-tap only if it's a double-tap candidate
+    // (handled in end). Don't cancel long-press timer setup here incorrectly.
+    this.cancelLongTimer();
     this.active = true;
     this.longFired = false;
     this.startCell = cell;
@@ -60,11 +65,17 @@ export class BoardGestureController {
     this.startY = y;
     this.pointerId = pointerId;
 
-    this.timer = setTimeout(() => {
-      if (!this.active || !this.startCell || this.path.length !== 1) return;
-      this.longFired = true;
-      this.onLongPress?.(this.startCell);
-    }, this.longPressMs);
+    if (this.onLongPress) {
+      this.longTimer = setTimeout(() => {
+        if (!this.active || !this.startCell || this.path.length !== 1) return;
+        this.longFired = true;
+        // Cancel any deferred single-tap — long press wins
+        this.cancelPendingTap();
+        this.lastTapAt = 0;
+        this.lastTapCell = null;
+        this.onLongPress?.(this.startCell);
+      }, this.longPressMs);
+    }
   }
 
   move(cell: CellCoord, x: number, y: number, pointerId: number): void {
@@ -74,7 +85,7 @@ export class BoardGestureController {
 
     // Leaving first cell cancels long-press
     if (this.path.length === 1) {
-      this.cancelTimer();
+      this.cancelLongTimer();
     }
 
     this.path.push(cell);
@@ -84,7 +95,7 @@ export class BoardGestureController {
 
   end(x: number, y: number, pointerId: number): void {
     if (!this.active || this.pointerId !== pointerId) return;
-    this.cancelTimer();
+    this.cancelLongTimer();
     this.active = false;
     this.pointerId = null;
 
@@ -103,6 +114,10 @@ export class BoardGestureController {
     const end = unique[unique.length - 1];
 
     if (unique.length >= SWIPE_MIN_CELLS) {
+      // Swipe cancels a pending single-tap
+      this.cancelPendingTap();
+      this.lastTapAt = 0;
+      this.lastTapCell = null;
       this.onGesture?.({
         kind: "swipe",
         path: unique,
@@ -118,6 +133,8 @@ export class BoardGestureController {
         now - this.lastTapAt <= DOUBLE_TAP_MS;
 
       if (isDouble) {
+        // Second tap of a double — kill deferred single-tap, fire doubletap
+        this.cancelPendingTap();
         this.onGesture?.({
           kind: "doubletap",
           path: [end],
@@ -127,14 +144,22 @@ export class BoardGestureController {
         this.lastTapAt = 0;
         this.lastTapCell = null;
       } else {
-        this.onGesture?.({
-          kind: "tap",
-          path: [end],
-          start: end,
-          end,
-        });
+        // Defer single-tap so a quick second tap can become doubletap
+        this.cancelPendingTap();
         this.lastTapAt = now;
         this.lastTapCell = end;
+        const tapEnd = end;
+        this.pendingTapTimer = setTimeout(() => {
+          this.pendingTapTimer = null;
+          this.onGesture?.({
+            kind: "tap",
+            path: [tapEnd],
+            start: tapEnd,
+            end: tapEnd,
+          });
+          this.lastTapAt = 0;
+          this.lastTapCell = null;
+        }, DOUBLE_TAP_MS);
       }
     }
 
@@ -143,7 +168,8 @@ export class BoardGestureController {
   }
 
   cancel(): void {
-    this.cancelTimer();
+    this.cancelLongTimer();
+    this.cancelPendingTap();
     this.active = false;
     this.pointerId = null;
     this.startCell = null;
@@ -151,10 +177,17 @@ export class BoardGestureController {
     this.longFired = false;
   }
 
-  private cancelTimer(): void {
-    if (this.timer) {
-      clearTimeout(this.timer);
-      this.timer = null;
+  private cancelLongTimer(): void {
+    if (this.longTimer) {
+      clearTimeout(this.longTimer);
+      this.longTimer = null;
+    }
+  }
+
+  private cancelPendingTap(): void {
+    if (this.pendingTapTimer) {
+      clearTimeout(this.pendingTapTimer);
+      this.pendingTapTimer = null;
     }
   }
 }

@@ -7,21 +7,21 @@ const ORDER: InventoryPowerId[] = ["nuke", "freeze"];
 
 interface InventoryBarProps {
   board: Board;
-  flagPaint: boolean;
+  openSwipe: boolean;
   onBoardChange: (next: Board) => void;
-  onToggleFlagPaint: () => void;
+  onToggleOpenSwipe: () => void;
   onExit?: () => void;
 }
 
 export function InventoryBar({
   board,
-  flagPaint,
+  openSwipe,
   onBoardChange,
-  onToggleFlagPaint,
+  onToggleOpenSwipe,
   onExit,
 }: InventoryBarProps) {
   return (
-    <div className="flex items-center gap-2 rounded-2xl bg-black/30 p-2 ring-1 ring-white/10 backdrop-blur-md">
+    <div className="flex shrink-0 items-center gap-2 rounded-2xl bg-black/30 p-2 ring-1 ring-white/10 backdrop-blur-md">
       {onExit && (
         <button
           type="button"
@@ -35,15 +35,15 @@ export function InventoryBar({
 
       <button
         type="button"
-        onClick={onToggleFlagPaint}
+        onClick={onToggleOpenSwipe}
         className={`flex h-11 min-w-[4.5rem] flex-col items-center justify-center rounded-xl px-2 text-[10px] font-semibold transition ${
-          flagPaint
-            ? "bg-fuchsia-500 text-white shadow-lg shadow-fuchsia-500/30"
+          openSwipe
+            ? "bg-sky-500 text-white shadow-lg shadow-sky-500/30"
             : "bg-white/10 text-white/80"
         }`}
       >
-        <span className="text-base leading-none">🚩</span>
-        Flag swipe
+        <span className="text-base leading-none">{openSwipe ? "✨" : "🚩"}</span>
+        {openSwipe ? "Open swipe" : "Flag swipe"}
       </button>
 
       <div className="flex flex-1 items-center justify-center gap-2">
@@ -77,9 +77,9 @@ export function InventoryBar({
       </div>
 
       <div className="hidden text-[9px] leading-tight text-white/40 sm:block">
-        Tap open · hold flag
+        Tap flag · 2× open
         <br />
-        swipe paint · 2× chord
+        swipe paint path
       </div>
     </div>
   );

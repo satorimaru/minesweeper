@@ -34,7 +34,7 @@ export function CellView({
 
   let content: React.ReactNode = null;
   let className =
-    "relative flex items-center justify-center select-none font-bold transition-transform duration-150 ";
+    "relative box-border flex h-full w-full items-center justify-center select-none font-bold transition-transform duration-150 ";
 
   if (state === "open") {
     className += justOpened
@@ -64,10 +64,6 @@ export function CellView({
   } else {
     className +=
       "bg-gradient-to-br from-indigo-500 to-violet-600 shadow-md active:scale-95 ";
-    if (powerUp && showMines) {
-      // debug only
-    }
-    // Subtle loot shimmer on hidden cells that hold powerups — only a tiny sparkle edge
     if (powerUp) {
       className += "ring-1 ring-amber-300/40 ";
     }
@@ -76,6 +72,8 @@ export function CellView({
   if (showMines && isMine && state === "hidden") {
     content = "·";
   }
+
+  const radius = Math.max(3, Math.min(8, size * 0.18));
 
   return (
     <button
@@ -87,9 +85,14 @@ export function CellView({
       style={{
         width: size,
         height: size,
-        fontSize: size * 0.4,
-        borderRadius: Math.max(6, size * 0.18),
+        minWidth: size,
+        minHeight: size,
+        maxWidth: size,
+        maxHeight: size,
+        fontSize: Math.max(10, size * 0.4),
+        borderRadius: radius,
         touchAction: "none",
+        padding: 0,
       }}
       onPointerDown={(e) => onPointerDown(cell.row, cell.col, e)}
       onPointerEnter={(e) => onPointerEnter(cell.row, cell.col, e)}
