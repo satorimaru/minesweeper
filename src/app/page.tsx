@@ -15,6 +15,7 @@ import {
 } from "@/lib/player";
 import { sfx } from "@/lib/sfx";
 import { HighScoreTable } from "@/components/HighScoreTable";
+import { HowToPlay, HowToPlayButton } from "@/components/HowToPlay";
 import { SoloGame } from "@/components/SoloGame";
 import { SoundToggle } from "@/components/SoundToggle";
 
@@ -27,6 +28,7 @@ export default function HomePage() {
   const [difficulty, setDifficulty] = useState<Difficulty>("beginner");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showHowTo, setShowHowTo] = useState(false);
 
   useEffect(() => {
     getOrCreatePlayerId();
@@ -189,6 +191,8 @@ export default function HomePage() {
               );
             })}
           </div>
+
+          <HowToPlayButton onClick={() => setShowHowTo(true)} />
         </div>
       </div>
 
@@ -200,6 +204,8 @@ export default function HomePage() {
         <p>Tap flag · Double-tap open · Swipe to paint · Tap open number to chord</p>
         <p>Add to Home Screen for the full PWA vibe</p>
       </div>
+
+      <HowToPlay open={showHowTo} onClose={() => setShowHowTo(false)} />
     </main>
   );
 }
