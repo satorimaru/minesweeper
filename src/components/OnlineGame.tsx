@@ -10,7 +10,9 @@ import {
   generateBoard,
 } from "@/lib/minesweeper";
 import type { Room } from "@/lib/rooms/types";
+import { playBoardTransition } from "@/lib/boardSfx";
 import { getOrCreatePlayerId, getPlayerName, setPlayerName } from "@/lib/player";
+import { sfx } from "@/lib/sfx";
 import { Board as BoardView } from "./Board";
 import { GameHUD } from "./GameHUD";
 import { InventoryBar } from "./InventoryBar";
@@ -37,6 +39,7 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
   const finishedRef = useRef(false);
   const boardSeedRef = useRef<number | null>(null);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const boardSnapRef = useRef<Board | null>(null);
 
   const api = useCallback(
     async (action: string, extra: Record<string, unknown> = {}) => {
@@ -109,10 +112,22 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
     finishedRef.current = false;
     seenSabotages.current = new Set();
     const config = DIFFICULTIES[room.difficulty];
-    setBoard(generateBoard(config, room.seed, room.mode));
+    const next = generateBoard(config, room.seed, room.mode);
+    boardSnapRef.current = next;
+    setBoard(next);
     setOpenSwipe(false);
     setElapsed(0);
+    sfx.unlock();
+    sfx.ready();
   }, [room]);
+
+  const applyBoard = useCallback((next: Board) => {
+    sfx.unlock();
+    const prev = boardSnapRef.current;
+    if (prev) playBoardTransition(prev, next);
+    boardSnapRef.current = next;
+    setBoard(next);
+  }, []);
 
   // Timer — freezes when local board or room leaves playing
   useEffect(() => {
@@ -169,7 +184,14 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
       if (s.fromPlayerId === playerId.current) continue;
       if (seenSabotages.current.has(s.id)) continue;
       seenSabotages.current.add(s.id);
-      setBoard((b) => (b ? applySabotage(b, s.type) : b));
+      setBoard((b) => {
+        if (!b) return b;
+        const next = applySabotage(b, s.type);
+        playBoardTransition(b, next);
+        boardSnapRef.current = next;
+        sfx.freeze();
+        return next;
+      });
     }
   }, [room, board]);
 
@@ -310,15 +332,19 @@ export function OnlineGame({ roomId }: OnlineGameProps) {
             room.status === "finished" ||
             me?.playStatus === "finished"
           }
-          onChange={setBoard}
+          onChange={applyBoard}
         />
       </div>
 
       <InventoryBar
         board={board}
         openSwipe={openSwipe}
-        onBoardChange={setBoard}
-        onToggleOpenSwipe={() => setOpenSwipe((v) => !v)}
+        onBoardChange={applyBoard}
+        onToggleOpenSwipe={() => {
+          sfx.unlock();
+          sfx.ui();
+          setOpenSwipe((v) => !v);
+        }}
       />
 
       {(room.status === "finished" || board.status === "lost") && (

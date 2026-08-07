@@ -2,6 +2,8 @@
 
 import type { Board, InventoryPowerId } from "@/lib/minesweeper";
 import { POWER_UP_ICONS, POWER_UP_LABELS, setArmedPower } from "@/lib/minesweeper";
+import { sfx } from "@/lib/sfx";
+import { SoundToggle } from "./SoundToggle";
 
 const ORDER: InventoryPowerId[] = ["nuke", "freeze"];
 
@@ -25,7 +27,11 @@ export function InventoryBar({
       {onExit && (
         <button
           type="button"
-          onClick={onExit}
+          onClick={() => {
+            sfx.unlock();
+            sfx.ui();
+            onExit();
+          }}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 text-sm text-white/80 active:bg-white/20"
           aria-label="Exit"
         >
@@ -33,10 +39,16 @@ export function InventoryBar({
         </button>
       )}
 
+      <SoundToggle compact />
+
       <button
         type="button"
-        onClick={onToggleOpenSwipe}
-        className={`flex h-11 min-w-[4.5rem] flex-col items-center justify-center rounded-xl px-2 text-[10px] font-semibold transition ${
+        onClick={() => {
+          sfx.unlock();
+          sfx.ui();
+          onToggleOpenSwipe();
+        }}
+        className={`flex h-11 min-w-[4.25rem] flex-col items-center justify-center rounded-xl px-2 text-[10px] font-semibold transition ${
           openSwipe
             ? "bg-sky-500 text-white shadow-lg shadow-sky-500/30"
             : "bg-white/10 text-white/80"
@@ -56,6 +68,8 @@ export function InventoryBar({
               type="button"
               disabled={count <= 0 && !armed}
               onClick={() => {
+                sfx.unlock();
+                sfx.ui();
                 onBoardChange(setArmedPower(board, armed ? null : id));
               }}
               className={`relative flex h-12 w-14 flex-col items-center justify-center rounded-xl text-[10px] font-semibold transition disabled:opacity-35 ${
@@ -74,12 +88,6 @@ export function InventoryBar({
             </button>
           );
         })}
-      </div>
-
-      <div className="hidden text-[9px] leading-tight text-white/40 sm:block">
-        Tap flag · 2× open
-        <br />
-        swipe paint path
       </div>
     </div>
   );

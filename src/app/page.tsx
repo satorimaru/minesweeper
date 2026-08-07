@@ -13,7 +13,10 @@ import {
   getPlayerName,
   setPlayerName,
 } from "@/lib/player";
+import { sfx } from "@/lib/sfx";
+import { HighScoreTable } from "@/components/HighScoreTable";
 import { SoloGame } from "@/components/SoloGame";
+import { SoundToggle } from "@/components/SoundToggle";
 
 type Screen = "menu" | "solo" | "chaos";
 
@@ -48,6 +51,7 @@ export default function HomePage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create room");
+      sfx.ready();
       router.push(`/game/${data.room.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create room");
@@ -74,7 +78,11 @@ export default function HomePage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-4 py-8 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-4 py-8 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className="mb-3 flex justify-end">
+        <SoundToggle />
+      </div>
+
       <div className="rounded-3xl bg-white/10 p-6 text-white shadow-2xl ring-1 ring-white/15 backdrop-blur-xl">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br from-fuchsia-500 to-violet-600 text-3xl shadow-lg shadow-fuchsia-500/40">
@@ -99,6 +107,7 @@ export default function HomePage() {
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onFocus={() => sfx.unlock()}
               placeholder="Your name"
               maxLength={24}
               className="w-full rounded-xl bg-white/10 px-3 py-3 text-sm text-white outline-none ring-1 ring-white/15 placeholder:text-white/30 focus:ring-2 focus:ring-fuchsia-400"
@@ -117,7 +126,11 @@ export default function HomePage() {
                   <button
                     key={key}
                     type="button"
-                    onClick={() => setDifficulty(key)}
+                    onClick={() => {
+                      sfx.unlock();
+                      sfx.ui();
+                      setDifficulty(key);
+                    }}
                     className={`rounded-xl px-2 py-3 text-center transition active:scale-95 ${
                       selected
                         ? "bg-gradient-to-br from-fuchsia-500 to-violet-600 shadow-md shadow-fuchsia-500/30"
@@ -160,6 +173,8 @@ export default function HomePage() {
                   type="button"
                   disabled={creating && meta.online}
                   onClick={() => {
+                    sfx.unlock();
+                    sfx.ui();
                     setPlayerName(name);
                     action();
                   }}
@@ -175,6 +190,10 @@ export default function HomePage() {
             })}
           </div>
         </div>
+      </div>
+
+      <div className="mt-5">
+        <HighScoreTable />
       </div>
 
       <div className="mt-6 space-y-1 text-center text-[11px] text-white/35">

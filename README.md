@@ -23,6 +23,16 @@ A chaotic, candy-crush take on Minesweeper — combos, rockets, nukes, swipe ges
 
 Blast · Row/Col Rockets · Radar · Shield · Chaos Pop · Nuke · Freeze (versus sabotage)
 
+## Sound
+
+Synthesized Web Audio SFX (opens, flags, mines, power-ups, win/lose). Mute toggle on the menu and in-game bar. First tap unlocks audio on iPhone.
+
+## High scores
+
+- **Local** — top scores on this device (localStorage)
+- **Global** — shared board via Upstash Redis (`/api/scores`) when env vars are set  
+Solo / Chaos wins auto-submit with name, score, combo, time, and heat.
+
 ## Multiplayer storage (Upstash)
 
 Production rooms are stored in **Upstash Redis** via:

@@ -8,7 +8,14 @@ import {
   DIFFICULTIES,
   generateBoard,
 } from "@/lib/minesweeper";
+import { playBoardTransition } from "@/lib/boardSfx";
+import { getPlayerName } from "@/lib/player";
 import { randomSeed } from "@/lib/prng";
+import {
+  submitScore,
+  type ScoreSubmitResult,
+} from "@/lib/scores";
+import { sfx } from "@/lib/sfx";
 import { Board as BoardView } from "./Board";
 import { GameHUD } from "./GameHUD";
 import { InventoryBar } from "./InventoryBar";
@@ -29,14 +36,23 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [seedKey, setSeedKey] = useState(0);
+  const [scoreResult, setScoreResult] = useState<ScoreSubmitResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submittedRef = useRef(false);
+  const boardRef = useRef(board);
+  boardRef.current = board;
 
   const restart = useCallback(() => {
+    sfx.unlock();
+    sfx.ui();
     setBoard(generateBoard(config, randomSeed(), mode));
     setStartedAt(null);
     setElapsed(0);
     setOpenSwipe(false);
     setSeedKey((k) => k + 1);
+    setScoreResult(null);
+    submittedRef.current = false;
   }, [config, mode]);
 
   // Timer — freezes the moment the board leaves "playing"
@@ -64,12 +80,59 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
     };
   }, [board.floaters, board.lastPowerMessage, board.floaterSeq]);
 
-  const onChange = (next: Board) => {
+  // Submit high score once on win
+  useEffect(() => {
+    if (board.status !== "won" || submittedRef.current) return;
+    submittedRef.current = true;
+    setSubmitting(true);
+    const timeSeconds =
+      startedAt !== null ? (Date.now() - startedAt) / 1000 : elapsed;
+    void submitScore({
+      name: getPlayerName() || "Player",
+      score: board.score,
+      mode,
+      difficulty,
+      maxCombo: board.maxCombo,
+      timeSeconds,
+      mineHits: board.mineHits,
+    })
+      .then((result) => {
+        setScoreResult(result);
+        if (result.isLocalBest || (result.localRank && result.localRank <= 3)) {
+          sfx.power();
+        }
+      })
+      .finally(() => setSubmitting(false));
+  }, [
+    board.status,
+    board.score,
+    board.maxCombo,
+    board.mineHits,
+    mode,
+    difficulty,
+    startedAt,
+    elapsed,
+  ]);
+
+  const applyBoard = useCallback((next: Board) => {
+    sfx.unlock();
+    const prev = boardRef.current;
+    playBoardTransition(prev, next);
     if (startedAt === null && next.openedCount > 0) {
       setStartedAt(Date.now());
     }
     setBoard(next);
-  };
+  }, [startedAt]);
+
+  const subtitleBits: string[] = [
+    mode === "chaos" ? "Chaos Run complete" : "Solo Crush complete",
+  ];
+  if (scoreResult?.isLocalBest) subtitleBits.push("🏆 New personal best!");
+  else if (scoreResult?.localRank)
+    subtitleBits.push(`Local rank #${scoreResult.localRank}`);
+  if (scoreResult?.globalRank)
+    subtitleBits.push(`Global #${scoreResult.globalRank}`);
+  if (submitting) subtitleBits.push("Saving score…");
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 pb-[env(safe-area-inset-bottom)]">
@@ -88,15 +151,19 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
           mode={mode}
           openSwipe={openSwipe}
           disabled={board.status !== "playing"}
-          onChange={onChange}
+          onChange={applyBoard}
         />
       </div>
 
       <InventoryBar
         board={board}
         openSwipe={openSwipe}
-        onBoardChange={setBoard}
-        onToggleOpenSwipe={() => setOpenSwipe((v) => !v)}
+        onBoardChange={applyBoard}
+        onToggleOpenSwipe={() => {
+          sfx.unlock();
+          sfx.ui();
+          setOpenSwipe((v) => !v);
+        }}
         onExit={onExit}
       />
 
@@ -104,7 +171,7 @@ export function SoloGame({ mode, difficulty, onExit }: SoloGameProps) {
         <ResultModal
           tone="win"
           title="Board crushed!"
-          subtitle={mode === "chaos" ? "Chaos Run complete" : "Solo Crush complete"}
+          subtitle={subtitleBits.join(" · ")}
           stats={[
             { label: "Score", value: board.score.toLocaleString() },
             { label: "Max combo", value: `×${board.maxCombo}` },
